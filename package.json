@@ -1,0 +1,13 @@
+{
+  "name": "seven-studio-candidatura",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Landing page and application form for the SEVEN Studio 90-day selection",
+  "scripts": {
+    "start": "python3 -m http.server 4173",
+    "test": "node verify.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}
