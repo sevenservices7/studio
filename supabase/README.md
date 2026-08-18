@@ -17,10 +17,11 @@ git, nunca no browser.
 - **RLS fechada.** O `anon` só pode `INSERT`. Não lê, não altera, não apaga.
 - **Pipeline ligada e testada ponta-a-ponta.** Uma candidatura de teste gerou
   o `notified_at` na linha e o e-mail foi entregue.
-- **Entrega limitada até verificar o domínio.** O Resend ainda está em modo de
-  teste (sem domínio verificado): só entrega ao endereço do titular
-  (`danilo@sevens.services`), a partir de `onboarding@resend.dev`. Por isso o
-  `studio_alert_to` está, por agora, só com o titular. Ver o passo final.
+- **Domínio verificado.** `sevens.services` está *verified* no Resend, por isso
+  o envio é de `candidaturas@sevens.services` e chega a todos os destinatários.
+  O Vault está com os valores de produção:
+  `studio_alert_to = danilo@sevens.services,thaynaoli55@gmail.com` e
+  `studio_alert_from = Candidaturas SEVEN Studio <candidaturas@sevens.services>`.
 
 ## Como está montado
 
@@ -71,23 +72,18 @@ select vault.update_secret(
 );
 ```
 
-## Passo final — verificar o domínio no Resend
+## Mudar destinatários / remetente
 
-Enquanto o domínio não estiver verificado, só o titular recebe e-mail. Para
-avisar também `thaynaoli55@gmail.com` (e enviar de `@sevens.services`):
+O domínio `sevens.services` já está verificado no Resend. Para mudar os
+destinatários ou o remetente basta atualizar o Vault (sem redeploy — a função
+relê o Vault a cada chamada):
 
-1. Resend → **Domains** → *Add Domain* → `sevens.services`.
-2. Adicionar no GoDaddy os registos DNS (TXT/MX/CNAME) que o Resend indicar.
-3. Quando o Resend marcar **Verified**, atualizar o Vault:
-
-   ```sql
-   select vault.update_secret((select id from vault.secrets where name='studio_alert_to'),
-     'danilo@sevens.services,thaynaoli55@gmail.com');
-   select vault.update_secret((select id from vault.secrets where name='studio_alert_from'),
-     'Candidaturas SEVEN Studio <candidaturas@sevens.services>');
-   ```
-
-Não é preciso redeploy — a função relê o Vault a cada chamada.
+```sql
+select vault.update_secret((select id from vault.secrets where name='studio_alert_to'),
+  'danilo@sevens.services,thaynaoli55@gmail.com');
+select vault.update_secret((select id from vault.secrets where name='studio_alert_from'),
+  'Candidaturas SEVEN Studio <candidaturas@sevens.services>');
+```
 
 ## Diagnóstico
 
