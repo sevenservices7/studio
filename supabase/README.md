@@ -1,126 +1,102 @@
 # Backend das candidaturas
 
-O formulário grava em `public.studio_applications` e um Database Webhook
-dispara a Edge Function `notify-application`, que envia a candidatura por
-e-mail via [Resend](https://resend.com).
+O formulário grava em `public.studio_applications`. Um gatilho na base de
+dados dispara (via `pg_net`) a Edge Function `notify-application`, que envia a
+candidatura por e-mail através do [Resend](https://resend.com).
 
 ```
-browser  ──POST REST──▶  studio_applications  ──webhook──▶  notify-application  ──▶  Resend  ──▶  e-mail
+browser ─POST REST─▶ studio_applications ─trigger(pg_net)─▶ notify-application ─▶ Resend ─▶ e-mail
 ```
 
-A chave do Resend vive só nos secrets da função. O browser nunca a vê — a
-página continua a usar apenas a chave publishable.
+A chave publishable (anon) é a única coisa no browser. Todos os segredos
+(chave do Resend, segredo do gatilho) vivem no **Supabase Vault** — nunca no
+git, nunca no browser.
 
-## Estado antes desta correção
+## Estado atual (2026-08-18)
 
-O papel `anon` não tinha política de `INSERT`, então **todas** as
-candidaturas eram rejeitadas com `42501 new row violates row-level security
-policy` e nada era gravado. Não havia envio de e-mail em nenhuma forma.
-Candidaturas submetidas antes da correção estão perdidas — não chegaram à
-base de dados.
+- **RLS fechada.** O `anon` só pode `INSERT`. Não lê, não altera, não apaga.
+- **Pipeline ligada e testada ponta-a-ponta.** Uma candidatura de teste gerou
+  o `notified_at` na linha e o e-mail foi entregue.
+- **Domínio verificado.** `sevens.services` está *verified* no Resend, por isso
+  o envio é de `candidaturas@sevens.services` e chega a todos os destinatários.
+  O Vault está com os valores de produção:
+  `studio_alert_to = danilo@sevens.services,thaynaoli55@gmail.com` e
+  `studio_alert_from = Candidaturas SEVEN Studio <candidaturas@sevens.services>`.
 
-## Passo 1 — corrigir o acesso à tabela
+## Como está montado
 
-No painel do Supabase → **SQL Editor**, correr
-[`migrations/0001_fix_rls.sql`](migrations/0001_fix_rls.sql).
+### 1. Fechar a leitura — [`migrations/0001_fix_rls.sql`](migrations/0001_fix_rls.sql)
 
-Deixa o `anon` com uma única capacidade: inserir. Sem leitura, alteração ou
-remoção — o que importa porque a chave publishable está visível no JS da
-página, e sem isto qualquer pessoa poderia ler todas as candidaturas.
+Deixa o `anon` só com `INSERT`. Sem leitura, alteração ou remoção.
 
-Confirmar no fim:
+### 2. Pipeline de notificação — [`migrations/0002_notify_pipeline.sql`](migrations/0002_notify_pipeline.sql)
 
-```sql
-select policyname, cmd, roles from pg_policies
-where tablename = 'studio_applications';
-```
+- `public.studio_secrets()` — RPC `security definer` que entrega os segredos do
+  Vault à Edge Function. Só executável pelo `service_role`.
+- `public.notificar_nova_candidatura()` + gatilho `on_nova_candidatura` — em
+  cada `INSERT` faz `net.http_post` para a função, com o cabeçalho
+  `x-hook-secret` lido do Vault.
 
-Deve aparecer só a política de `INSERT` para `{anon}`.
+### 3. Edge Function — [`functions/notify-application/index.ts`](functions/notify-application/index.ts)
 
-## Passo 2 — chave do Resend
+Lê os segredos pela RPC (com a `SUPABASE_SERVICE_ROLE_KEY` injetada pelo
+runtime), valida o `x-hook-secret`, monta o e-mail e envia pelo Resend.
+Escreve `notified_at`/`notify_error` na própria linha, para que uma falha
+fique visível na tabela. Publicada com `verify_jwt=false` (quem chama é a base
+de dados, não um utilizador; a autenticação é o `x-hook-secret`).
 
-1. Criar conta em [resend.com](https://resend.com) e gerar uma API key.
-2. **Verificar o domínio** `sevens.services` em Resend → Domains (adicionar
-   os registos DNS que ele indica). Sem domínio verificado só se pode enviar
-   de `onboarding@resend.dev`, que serve para testar mas cai facilmente em
-   spam.
-
-## Passo 3 — publicar a função
-
-Com a [CLI do Supabase](https://supabase.com/docs/guides/cli):
+Redeploy (precisa da [CLI](https://supabase.com/docs/guides/cli)):
 
 ```bash
-supabase login
-supabase link --project-ref ywywcffulifkwbllgnts
-
-supabase secrets set \
-  RESEND_API_KEY=re_xxxxxxxxxxxx \
-  ALERT_FROM='Candidaturas SEVEN <candidaturas@sevens.services>' \
-  WEBHOOK_SECRET="$(openssl rand -hex 24)"
-
-supabase functions deploy notify-application --no-verify-jwt
+supabase functions deploy notify-application --no-verify-jwt \
+  --project-ref ywywcffulifkwbllgnts
 ```
 
-`--no-verify-jwt` é necessário porque quem chama é o webhook da base de
-dados, não um utilizador autenticado. O acesso fica protegido pelo
-`WEBHOOK_SECRET` do passo 4 — guardar o valor gerado.
+### Segredos no Vault
 
-Os destinatários estão versionados no código (`DEFAULT_TO` em
-`functions/notify-application/index.ts`): `danilo@sevens.services` e
-`thaynaoli55@gmail.com`. Para mudar sem editar o código, definir o secret
-`ALERT_TO` (vírgulas para vários), que substitui a lista padrão.
+Definidos uma vez, fora do git:
 
-| Secret           | Obrigatório | Para quê                                  |
-| ---------------- | ----------- | ----------------------------------------- |
-| `RESEND_API_KEY` | sim         | autenticação em `api.resend.com`          |
-| `ALERT_TO`       | não         | substitui os destinatários padrão do código  |
-| `ALERT_FROM`     | não         | remetente; falha para `onboarding@resend.dev` |
-| `WEBHOOK_SECRET` | recomendado | impede que estranhos disparem a função    |
+| Segredo (Vault)          | Para quê                                            |
+| ------------------------ | --------------------------------------------------- |
+| `studio_hook_secret`     | partilhado entre o gatilho e a função (`x-hook-secret`) |
+| `studio_resend_api_key`  | autenticação em `api.resend.com`                    |
+| `studio_alert_to`        | destinatários, separados por vírgula                |
+| `studio_alert_from`      | remetente (tem de ser um domínio verificado)        |
 
-## Passo 4 — ligar o webhook
-
-Painel → **Database** → **Webhooks** → *Create a new hook*:
-
-| Campo            | Valor                                                                     |
-| ---------------- | ------------------------------------------------------------------------- |
-| Name             | `notificar-candidatura`                                                   |
-| Table            | `public.studio_applications`                                              |
-| Events           | `Insert`                                                                  |
-| Type             | HTTP Request → `POST`                                                     |
-| URL              | `https://ywywcffulifkwbllgnts.supabase.co/functions/v1/notify-application` |
-| HTTP Headers     | `x-webhook-secret: <o valor gerado no passo 3>`                           |
-
-## Passo 5 — testar
-
-Chamada directa à função (o corpo é aceite tal e qual, sem envelope):
-
-```bash
-curl -i -X POST \
-  'https://ywywcffulifkwbllgnts.supabase.co/functions/v1/notify-application' \
-  -H 'Content-Type: application/json' \
-  -H 'x-webhook-secret: <o valor gerado no passo 3>' \
-  -d '{"nome":"Teste","email":"teste@exemplo.pt","historia":"a testar","origem":"teste"}'
-```
-
-Esperado: `200 {"ok":true}` e o e-mail em `ALERT_TO`.
-
-Ponta a ponta, preencher o formulário a sério. Deve deixar uma linha na
-tabela **e** chegar o e-mail. Como o `anon` já não pode ler, contar as
-linhas exige a service_role key ou o painel:
+Trocar um valor (sem redeploy):
 
 ```sql
-select count(*), max(created_at) from public.studio_applications;
+select vault.update_secret(
+  (select id from vault.secrets where name='studio_alert_to'),
+  'danilo@sevens.services,thaynaoli55@gmail.com'
+);
 ```
 
-## Se o e-mail não chegar
+## Mudar destinatários / remetente
 
-Logs em painel → **Edge Functions** → `notify-application` → *Logs*.
+O domínio `sevens.services` já está verificado no Resend. Para mudar os
+destinatários ou o remetente basta atualizar o Vault (sem redeploy — a função
+relê o Vault a cada chamada):
+
+```sql
+select vault.update_secret((select id from vault.secrets where name='studio_alert_to'),
+  'danilo@sevens.services,thaynaoli55@gmail.com');
+select vault.update_secret((select id from vault.secrets where name='studio_alert_from'),
+  'Candidaturas SEVEN Studio <candidaturas@sevens.services>');
+```
+
+## Diagnóstico
+
+Logs em painel → **Edge Functions** → `notify-application` → *Logs*, e a
+coluna `notify_error` da tabela.
 
 | Sintoma                              | Causa provável                                       |
 | ------------------------------------ | ---------------------------------------------------- |
-| Formulário mostra erro ao enviar     | Passo 1 não corrido — o INSERT continua barrado      |
-| Linha gravada, sem e-mail            | Webhook não ligado (passo 4) ou URL errado           |
-| Função responde `401`                | `x-webhook-secret` não coincide com o secret         |
-| Função responde `500 Not configured` | Falta o secret `RESEND_API_KEY`                      |
-| Função responde `500 Email failed`   | Resend recusou — normalmente `ALERT_FROM` não verificado |
-| E-mail vai para spam                 | Domínio não verificado em Resend (passo 2)           |
+| Formulário mostra erro ao enviar     | RLS: o INSERT do anon foi revogado por engano        |
+| Linha gravada, `notify_error` cheio  | ver a mensagem: normalmente Resend recusou o destinatário/remetente |
+| `notify_error` = 403 do Resend       | domínio não verificado — só o titular recebe         |
+| Função responde `401`                | `x-hook-secret` ≠ `studio_hook_secret` no Vault      |
+| Função responde `500 Not configured` | falta `studio_resend_api_key` no Vault               |
+
+> Nota: existe ainda uma função antiga `nova-candidatura` (versão anterior
+> desta pipeline). O gatilho já não a usa; pode ser removida no painel.
