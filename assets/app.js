@@ -10,7 +10,7 @@
   var CFG = {
     prazoCurto: '31 de agosto',
     prazoLongo: '31 de agosto de 2026, 23h59',
-    perfis: ['@sevenstudio.pt', '@danilo.seven', '@seven.services']
+    perfis: ['@sevenstudiooffice', '@danilosantos7', '@thayoli7', '@danissantossj']
   };
 
   /* Publishable (anon) key — safe in the browser. The table must be

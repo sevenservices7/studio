@@ -158,8 +158,8 @@ await page.waitForTimeout(600);
 // --- submission ---
 check('done panel shown', !(await page.$eval('#done', n => n.hidden)));
 check('form hidden', await page.$eval('#form', n => n.hidden));
-check('3 instagram chips', (await page.$$('.done__profile')).length === 3);
-check('chip href', (await page.getAttribute('.done__profile', 'href')) === 'https://instagram.com/sevenstudio.pt');
+check('4 instagram chips', (await page.$$('.done__profile')).length === 4);
+check('chip href', (await page.getAttribute('.done__profile', 'href')) === 'https://instagram.com/sevenstudiooffice');
 
 check('payload captured', captured !== null);
 if (captured) {
