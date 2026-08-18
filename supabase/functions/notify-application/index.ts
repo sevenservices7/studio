@@ -6,14 +6,17 @@
    { type, table, record, old_record }.
 
    Segredos (Edge Function secrets, nunca no browser):
-     RESEND_API_KEY   chave de api.resend.com          (obrigatório)
-     ALERT_TO         destino, separado por vírgulas    (obrigatório)
-     ALERT_FROM       remetente num domínio verificado  (opcional)
-     WEBHOOK_SECRET   partilhado com o webhook          (recomendado)
+     RESEND_API_KEY   chave de api.resend.com                     (obrigatório)
+     ALERT_TO         destino, vírgulas; substitui o DEFAULT_TO   (opcional)
+     ALERT_FROM       remetente num domínio verificado            (opcional)
+     WEBHOOK_SECRET   partilhado com o webhook                    (recomendado)
    ============================================================ */
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
-const ALERT_TO = Deno.env.get('ALERT_TO');
+/* Destinatários padrão, versionados aqui para que o envio funcione mesmo
+   sem o secret. O secret ALERT_TO, se definido, substitui esta lista. */
+const DEFAULT_TO = 'danilo@sevens.services,thaynaoli55@gmail.com';
+const ALERT_TO = Deno.env.get('ALERT_TO') ?? DEFAULT_TO;
 const ALERT_FROM = Deno.env.get('ALERT_FROM') ?? 'Candidaturas SEVEN <onboarding@resend.dev>';
 const WEBHOOK_SECRET = Deno.env.get('WEBHOOK_SECRET');
 
@@ -120,8 +123,8 @@ Deno.serve(async (req: Request) => {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  if (!RESEND_API_KEY || !ALERT_TO) {
-    console.error('Falta RESEND_API_KEY ou ALERT_TO nos secrets da função.');
+  if (!RESEND_API_KEY) {
+    console.error('Falta RESEND_API_KEY nos secrets da função.');
     return new Response('Not configured', { status: 500 });
   }
 

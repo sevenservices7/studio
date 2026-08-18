@@ -55,7 +55,6 @@ supabase link --project-ref ywywcffulifkwbllgnts
 
 supabase secrets set \
   RESEND_API_KEY=re_xxxxxxxxxxxx \
-  ALERT_TO=danilo@sevens.services \
   ALERT_FROM='Candidaturas SEVEN <candidaturas@sevens.services>' \
   WEBHOOK_SECRET="$(openssl rand -hex 24)"
 
@@ -66,13 +65,15 @@ supabase functions deploy notify-application --no-verify-jwt
 dados, não um utilizador autenticado. O acesso fica protegido pelo
 `WEBHOOK_SECRET` do passo 4 — guardar o valor gerado.
 
-Para mais do que um destinatário, separar por vírgulas:
-`ALERT_TO=danilo@sevens.services,thay@sevens.services`
+Os destinatários estão versionados no código (`DEFAULT_TO` em
+`functions/notify-application/index.ts`): `danilo@sevens.services` e
+`thaynaoli55@gmail.com`. Para mudar sem editar o código, definir o secret
+`ALERT_TO` (vírgulas para vários), que substitui a lista padrão.
 
 | Secret           | Obrigatório | Para quê                                  |
 | ---------------- | ----------- | ----------------------------------------- |
 | `RESEND_API_KEY` | sim         | autenticação em `api.resend.com`          |
-| `ALERT_TO`       | sim         | quem recebe (vírgulas para vários)        |
+| `ALERT_TO`       | não         | substitui os destinatários padrão do código  |
 | `ALERT_FROM`     | não         | remetente; falha para `onboarding@resend.dev` |
 | `WEBHOOK_SECRET` | recomendado | impede que estranhos disparem a função    |
 
@@ -120,6 +121,6 @@ Logs em painel → **Edge Functions** → `notify-application` → *Logs*.
 | Formulário mostra erro ao enviar     | Passo 1 não corrido — o INSERT continua barrado      |
 | Linha gravada, sem e-mail            | Webhook não ligado (passo 4) ou URL errado           |
 | Função responde `401`                | `x-webhook-secret` não coincide com o secret         |
-| Função responde `500 Not configured` | Falta `RESEND_API_KEY` ou `ALERT_TO`                 |
+| Função responde `500 Not configured` | Falta o secret `RESEND_API_KEY`                      |
 | Função responde `500 Email failed`   | Resend recusou — normalmente `ALERT_FROM` não verificado |
 | E-mail vai para spam                 | Domínio não verificado em Resend (passo 2)           |
