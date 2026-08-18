@@ -50,12 +50,13 @@
       { name: 'interesse', label: 'Se não for o escolhido, quer a condição de lançamento', type: 'radio', options: ['Sim, quero saber os valores', 'Talvez, dependendo da proposta', 'Não, só me candidato à vaga'] }
     ],
     [
-      { name: 'historia', label: 'Sua história', type: 'textarea', rows: 8, min: 200, hint: 'Onde você começou, onde está hoje e o que ainda te trava. É por aqui que escolhemos — escreva como você falaria.' },
+      { name: 'historia', label: 'Sua história', type: 'textarea', rows: 8, min: 150, hint: 'Onde você começou, onde está hoje e o que ainda te trava. É por aqui que escolhemos — escreva como você falaria.' },
       { name: 'obstaculo', label: 'O maior obstáculo hoje', type: 'radio', options: ['Ninguém me conhece', 'Publico, mas não converte em cliente', 'Não sei o que dizer nem como aparecer', 'Minha imagem não sustenta o preço que quero cobrar', 'Não tenho tempo para tratar disto'] },
       { name: 'expectativa', label: 'O que precisa mudar em 90 dias para isso ter valido a pena', type: 'textarea', rows: 3 },
       { name: 'disponibilidade', label: 'Disponibilidade para gravar um dia de conteúdo', type: 'radio', options: ['Sim, consigo ir até o Algarve', 'Sim, se for gravado no meu espaço', 'Só consigo trabalhar online'] },
       { name: 'imagem', label: 'Autorizo o uso da minha imagem e das gravações caso seja o negócio escolhido.', type: 'check' },
-      { name: 'contacto', label: 'Aceito ser contatado pela SEVEN sobre esta candidatura e a condição de lançamento.', type: 'check' }
+      { name: 'contacto', label: 'Aceito ser contatado pela SEVEN sobre esta candidatura e a condição de lançamento.', type: 'check' },
+      { name: 'rgpd', label: 'Autorizo o tratamento dos meus dados pela SEVEN para avaliar esta candidatura e para contacto comercial, conforme o aviso de privacidade no rodapé.', type: 'check', hint: 'Podes retirar o consentimento e pedir a eliminação a qualquer momento em danilo@sevens.services.' }
     ]
   ];
 
@@ -405,7 +406,7 @@
     if (el.honeypot.value) { concluir(); return; }
 
     var v = state.vals;
-    var payload = { origem: origem, imagem: v.imagem === true, contacto: v.contacto === true };
+    var payload = { origem: origem, imagem: v.imagem === true, contacto: v.contacto === true, rgpd: v.rgpd === true };
     CAMPOS_ENVIADOS.forEach(function (n) {
       payload[n] = v[n] ? String(v[n]).trim() : '';
     });

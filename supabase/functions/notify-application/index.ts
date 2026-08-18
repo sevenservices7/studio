@@ -119,9 +119,15 @@ function montarHtml(r: Record<string, unknown>): string {
                    color:#0B1524;font-size:14px">${simNao(r.imagem)}</td>
       </tr>
       <tr>
+        <td style="padding:10px 14px;border-bottom:1px solid #e6e9ef;
+                   color:#5b6472;font-size:13px;white-space:nowrap">Aceita contacto</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e6e9ef;
+                   color:#0B1524;font-size:14px">${simNao(r.contacto)}</td>
+      </tr>
+      <tr>
         <td style="padding:10px 14px;color:#5b6472;font-size:13px;
-                   white-space:nowrap">Aceita contacto</td>
-        <td style="padding:10px 14px;color:#0B1524;font-size:14px">${simNao(r.contacto)}</td>
+                   white-space:nowrap">Consentimento RGPD</td>
+        <td style="padding:10px 14px;color:#0B1524;font-size:14px">${simNao(r.rgpd)}</td>
       </tr>
     </table>
   </div>
@@ -135,6 +141,7 @@ function montarTexto(r: Record<string, unknown>): string {
   });
   linhas.push(`Uso de imagem: ${simNao(r.imagem)}`);
   linhas.push(`Aceita contacto: ${simNao(r.contacto)}`);
+  linhas.push(`Consentimento RGPD: ${simNao(r.rgpd)}`);
   linhas.push(`Origem: ${String(r.origem ?? "direto")}`);
   return `Nova candidatura — SEVEN Studio\n\n${linhas.join("\n")}\n`;
 }
