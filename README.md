@@ -19,6 +19,10 @@ assets/
                       only those four are ever downloaded)
   logo-seal.png       round mark — navy baked in, composited with mix-blend-mode: screen
   logo-lockup.png     horizontal lock-up, same treatment
+supabase/
+  README.md           backend setup: RLS, Resend secrets, webhook
+  migrations/         SQL to run in the Supabase SQL Editor
+  functions/          Edge Function that emails each application
 verify.mjs            browser test suite (dev only)
 ```
 
@@ -44,10 +48,14 @@ it is lower-cased and stored as `origem` on the submission. Defaults to
 ## Submissions
 
 The form POSTs to the Supabase REST endpoint in `assets/app.js`, table
-`studio_applications`. The key is a **publishable** key, so it is fine in the
-browser — but it is only as safe as the table's row-level security. Make sure
-RLS on `studio_applications` grants that role `INSERT` and nothing else;
-otherwise anyone can read every application.
+`studio_applications`. A Database Webhook on `INSERT` then calls the
+`notify-application` Edge Function, which emails the application via Resend.
+Setup — RLS, secrets, webhook — is in [`supabase/README.md`](supabase/README.md).
+
+The key is a **publishable** key, so it is fine in the browser — but it is only
+as safe as the table's row-level security. `supabase/migrations/0001_fix_rls.sql`
+leaves the `anon` role able to `INSERT` and nothing else; without it, anyone can
+read every application.
 
 Columns written: `origem`, the boolean consents `imagem` and `contacto`, and 21
 text answers (`nome`, `instagram`, `whatsapp`, `email`, `cidade`, `negocio`,
